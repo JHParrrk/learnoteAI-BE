@@ -101,6 +101,10 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
 ### Create a Note
 
+swagger
+
+'http://localhost:3000/api'
+
 **POST** `http://localhost:3000/notes`
 
 Request Body:
