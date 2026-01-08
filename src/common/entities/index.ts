@@ -1,0 +1,51 @@
+export interface User {
+  id: number;
+  email?: string;
+  created_at: string;
+}
+
+export interface Review {
+  id: number;
+  user_id: number;
+  title: string;
+  raw_content: string;
+  refined_content?: string;
+  created_at: string;
+}
+
+export interface ReviewAnalysis {
+  id: number;
+  review_id: number;
+  summary_json: any;
+  skill_proposal_json: any;
+  feedback_json: any;
+  suggested_todos_json: any;
+  analyzed_at: string;
+}
+
+export interface FactCheck {
+  id: number;
+  review_id: number;
+  original_text: string;
+  verdict: 'TRUE' | 'FALSE' | 'PARTIALLY_TRUE';
+  correction?: string;
+  is_user_checked: boolean;
+}
+
+export interface SkillNode {
+  id: number;
+  user_id: number;
+  parent_id?: number;
+  name: string;
+  level: number;
+  source_note_id?: number;
+}
+
+export interface LearningTodo {
+  id: number;
+  review_id: number;
+  content: string;
+  due_date?: string;
+  status: 'PENDING' | 'COMPLETED';
+  reason?: string;
+}
