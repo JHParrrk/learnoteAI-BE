@@ -96,3 +96,24 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Usage
+
+### Create a Note
+
+**POST** `http://localhost:3000/notes`
+
+Request Body:
+
+```json
+{
+  "title": "테스트17",
+  "rawContent": "안녕하세요 출력할 수 있는 임의의 fact_checks, summary_json, skill_proposal_json, feedback_json, suggested_todos_json 테스트 부탁드립니다."
+}
+```
+
+### Get Analysis Result
+
+**GET** `http://localhost:3000/notes/:id/analysis`
+
+Replace `17` with the ID of the note you want to retrieve the analysis for.
