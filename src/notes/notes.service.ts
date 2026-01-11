@@ -20,16 +20,16 @@ export class NotesService {
   // Fixing type issues and unsafe assignments
   async createNote(userId: number, createNoteDto: CreateNoteDto) {
     if (createNoteDto && typeof createNoteDto === 'object') {
-      if (
-        typeof createNoteDto.title === 'string' &&
-        typeof createNoteDto.rawContent === 'string'
-      ) {
-        // 1. Save raw review
+      if (typeof createNoteDto.rawContent === 'string') {
+        const isAutoTitle = !createNoteDto.title;
+        const titleToSave = createNoteDto.title || 'Untitled Note';
+
+        // 1. Save raw Note
         const response = (await this.supabase
           .from('notes')
           .insert({
             user_id: userId,
-            title: createNoteDto.title,
+            title: titleToSave,
             raw_content: createNoteDto.rawContent,
           })
           .select()
@@ -40,21 +40,21 @@ export class NotesService {
 
         if (response.error || !response.data) {
           throw new Error(
-            `Failed to save review: ${response.error?.message || 'Unknown error'}`,
+            `Failed to save Note: ${response.error?.message || 'Unknown error'}`,
           );
         }
 
-        const review = response.data;
+        const note = response.data;
 
         // 2. Trigger AI Analysis asynchronously
-        this.analyzeNotes(review.id, createNoteDto.rawContent).catch(
+        this.analyzeNotes(note.id, createNoteDto.rawContent, isAutoTitle).catch(
           (err: unknown) => {
-            console.error('Error analyzing review:', err);
+            console.error('Error analyzing note:', err);
           },
         );
 
         return {
-          reviewId: review.id,
+          noteId: note.id,
           status: 'ANALYZING',
           message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
         };
@@ -62,7 +62,11 @@ export class NotesService {
     }
   }
 
-  async analyzeNotes(noteId: number, rawContent: string) {
+  async analyzeNotes(
+    noteId: number,
+    rawContent: string,
+    updateTitle: boolean = false,
+  ) {
     // Call OpenAI
     const result = (await this.openaiService.analyzeNote(
       rawContent,
@@ -89,32 +93,38 @@ export class NotesService {
       return;
     }
 
-    // Save Refined Note
-    await this.supabase
-      .from('notes')
-      .update({ refined_content: analysisResult.refinedNote })
-      .eq('id', noteId);
+    // Prepare update data
+    const updateData: { refined_content: string; title?: string } = {
+      refined_content: analysisResult.refinedNote,
+    };
+
+    if (updateTitle && analysisResult.generatedTitle) {
+      updateData.title = analysisResult.generatedTitle;
+    }
+
+    // Save Refined Note (and optionally title)
+    await this.supabase.from('notes').update(updateData).eq('id', noteId);
   }
 
-  async getAnalysisResult(reviewId: number) {
-    const reviewResponse = (await this.supabase
+  async getAnalysisResult(noteId: number) {
+    const noteResponse = (await this.supabase
       .from('notes')
       .select('*')
-      .eq('id', reviewId)
+      .eq('id', noteId)
       .single()) as {
       data: NotesEntity | null;
       error: { message: string } | null;
     };
 
-    if (reviewResponse.error || !reviewResponse.data) {
-      throw new NotFoundException('Review not found');
+    if (noteResponse.error || !noteResponse.data) {
+      throw new NotFoundException('Note not found');
     }
-    const review = reviewResponse.data;
+    const note = noteResponse.data;
 
     const analysisResponse = (await this.supabase
       .from('notes_analysis')
       .select('*')
-      .eq('note_id', reviewId)
+      .eq('note_id', noteId)
       .single()) as {
       data: AnalysisEntity | null;
       error: { message: string } | null;
@@ -124,16 +134,16 @@ export class NotesService {
 
     if (!analysis) {
       return {
-        reviewId,
+        noteId,
         status: 'ANALYZING',
         message: 'Analysis is still in progress.',
       };
     }
 
     return {
-      reviewId,
+      noteId,
       status: 'COMPLETED',
-      refinedNote: review?.refined_content || null,
+      refinedNote: note?.refined_content || null,
       summary: analysis.summary_json,
       factChecks: analysis.fact_checks_json || [],
       feedback: analysis.feedback_json,

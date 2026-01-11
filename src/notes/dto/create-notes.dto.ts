@@ -7,8 +7,8 @@ import {
 
 export class CreateNoteDto {
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  @IsOptional()
+  title?: string;
 
   @IsString()
   @IsNotEmpty()
