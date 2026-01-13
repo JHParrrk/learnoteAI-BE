@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { SupabaseModule } from './supabase/supabase.module';
 import { OpenaiModule } from './openai/openai.module';
 import { NotesModule } from './notes/notes.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -14,6 +15,7 @@ import { NotesModule } from './notes/notes.module';
     SupabaseModule,
     OpenaiModule,
     NotesModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
