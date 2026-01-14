@@ -2,9 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Request, Response, NextFunction } from 'express';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Global Validation Pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   // CORS 설정
   app.enableCors({
@@ -23,6 +33,8 @@ async function bootstrap() {
     .setTitle('LearnoteAI API')
     .setDescription('API documentation for LearnoteAI')
     .setVersion('1.0')
+    .addTag('dashboard', 'Endpoints related to user dashboard')
+    .addTag('notes', 'Endpoints related to user notes')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
