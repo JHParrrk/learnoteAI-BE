@@ -3,6 +3,7 @@ export interface NoteAnalysisResponse {
   title?: string;
   status: 'ANALYZING' | 'COMPLETED';
   message?: string;
+  rawContent?: string | null;
   refinedNote?: string | null;
   summary?: Record<string, any>;
   factChecks?: any[];

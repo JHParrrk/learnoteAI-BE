@@ -9,13 +9,16 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OpenaiService } from '../openai/openai.service';
 import { CreateNoteDto } from './dto/create-notes.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
+import { SaveLearningTodosDto } from './dto/save-learning-todos.dto';
 import { OpenAIAnalysisResult } from './interfaces/openai-analysis-result.interface';
 import { NotesEntity } from './interfaces/notes-entity.interface';
 import { AnalysisEntity } from './interfaces/analysis-entity.interface';
 import { NoteAnalysisResponse } from './interfaces/note-analysis-response.interface';
+import { DeadlineType } from '../dashboard/interfaces/deadline-type.enum';
 
 const TABLE_NOTES = 'notes';
 const TABLE_NOTES_ANALYSIS = 'notes_analysis';
+const TABLE_LEARNING_TODOS = 'learning_todos';
 
 @Injectable()
 export class NotesService {
@@ -33,7 +36,12 @@ export class NotesService {
   async createNote(
     userId: number,
     createNoteDto: CreateNoteDto,
-  ): Promise<{ noteId: number; status: string; message: string }> {
+  ): Promise<{
+    noteId: number;
+    status: string;
+    message: string;
+    rawContent: string;
+  }> {
     if (!createNoteDto?.rawContent) {
       throw new BadRequestException(
         'Invalid note data: rawContent is required.',
@@ -75,6 +83,7 @@ export class NotesService {
       noteId: note.id,
       status: 'ANALYZING',
       message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
+      rawContent: note.raw_content,
     };
   }
 
@@ -168,6 +177,7 @@ export class NotesService {
         noteId,
         title: note.title,
         status: 'ANALYZING',
+        rawContent: note.raw_content || null,
         message: 'Analysis is still in progress.',
       };
     }
@@ -178,6 +188,7 @@ export class NotesService {
       noteId,
       title: note.title,
       status: 'COMPLETED',
+      rawContent: note.raw_content || null,
       refinedNote: note.refined_content || null,
       summary: analysis.summary_json,
       factChecks: analysis.fact_checks_json || [],
@@ -238,5 +249,51 @@ export class NotesService {
     }
 
     return { message: 'Note and associated analysis deleted successfully' };
+  }
+
+  async saveLearningTodos(
+    userId: number,
+    noteId: number,
+    saveDto: SaveLearningTodosDto,
+  ): Promise<any[]> {
+    // Optional: Verify note exists and belongs to user
+    const { data: note, error: noteError } = await this.supabase
+      .from(TABLE_NOTES)
+      .select('id')
+      .eq('id', noteId)
+      .eq('user_id', userId)
+      .single();
+
+    if (noteError || !note) {
+      throw new NotFoundException(
+        `Note with ID ${noteId} not found or unauthorized`,
+      );
+    }
+
+    if (!saveDto.todos || saveDto.todos.length === 0) {
+      return [];
+    }
+
+    const todosToInsert = saveDto.todos.map((todo) => ({
+      note_id: noteId,
+      user_id: userId,
+      content: todo.content,
+      reason: todo.reason,
+      due_date: todo.dueDate,
+      deadline_type: todo.deadlineType as DeadlineType,
+      status: 'PENDING',
+    }));
+
+    const { data, error } = await this.supabase
+      .from(TABLE_LEARNING_TODOS)
+      .insert(todosToInsert)
+      .select();
+
+    if (error) {
+      this.logger.error(`Failed to save learning todos: ${error.message}`);
+      throw new InternalServerErrorException('Failed to save learning todos');
+    }
+
+    return data;
   }
 }

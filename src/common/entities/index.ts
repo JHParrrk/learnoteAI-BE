@@ -1,3 +1,5 @@
+import { DeadlineType } from '../../dashboard/interfaces/deadline-type.enum';
+
 export interface User {
   id: number;
   email?: string;
@@ -48,4 +50,5 @@ export interface LearningTodo {
   due_date?: string;
   status: 'PENDING' | 'COMPLETED';
   reason?: string;
+  deadline_type?: DeadlineType;
 }

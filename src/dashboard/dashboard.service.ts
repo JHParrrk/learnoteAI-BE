@@ -1,10 +1,23 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { DashboardSummary } from './interfaces/dashboard-summary.interface';
 import { ActivityItem } from './interfaces/activity-item.interface';
+import { CreateTodoDto } from './dto/create-todo.dto';
+import { UpdateTodoDto } from './dto/update-todo.dto';
+import { LearningTodo } from './interfaces/todo.interface';
+import { DeadlineType } from './interfaces/deadline-type.enum';
+
+const TABLE_TODOS = 'learning_todos';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(private readonly supabaseService: SupabaseService) {}
 
   private get supabase() {
@@ -241,5 +254,119 @@ export class DashboardService {
 
   private formatDateUtc(date: Date) {
     return date.toISOString().slice(0, 10);
+  }
+
+  // --- CRUD for Learning Todos ---
+
+  async createTodo(
+    userId: number,
+    createTodoDto: CreateTodoDto,
+  ): Promise<LearningTodo> {
+    // 1. noteId가 제공된 경우에만 해당 노트가 존재하고 사용자의 소유인지 확인
+    if (createTodoDto.noteId) {
+      const { data: note, error: noteError } = await this.supabase
+        .from('notes')
+        .select('id')
+        .eq('id', createTodoDto.noteId)
+        .eq('user_id', userId)
+        .single();
+
+      if (noteError || !note) {
+        throw new NotFoundException(
+          `Note with ID ${createTodoDto.noteId} not found for User ${userId}`,
+        );
+      }
+    }
+
+    // 2. 투두 생성
+    const response = await this.supabase
+      .from(TABLE_TODOS)
+      .insert({
+        user_id: userId,
+        note_id: createTodoDto.noteId || null,
+        content: createTodoDto.content,
+        due_date: createTodoDto.dueDate,
+        reason: createTodoDto.reason,
+        deadline_type: createTodoDto.deadlineType,
+        status: 'PENDING',
+      })
+      .select()
+      .single();
+
+    if (response.error) {
+      this.logger.error(
+        `Failed to create todo: ${JSON.stringify(response.error)}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to create todo: ${response.error.message}`,
+      );
+    }
+    return response.data as LearningTodo;
+  }
+
+  async getTodos(userId: number): Promise<LearningTodo[]> {
+    const response = await this.supabase
+      .from(TABLE_TODOS)
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (response.error) {
+      console.error('Error fetching todos:', response.error);
+      throw new InternalServerErrorException('Failed to fetch todos');
+    }
+    return (response.data as LearningTodo[]) ?? [];
+  }
+
+  async updateTodo(
+    userId: number,
+    todoId: number,
+    updateTodoDto: UpdateTodoDto,
+  ): Promise<LearningTodo> {
+    const updates: Partial<LearningTodo> = {};
+    if (updateTodoDto.content !== undefined)
+      updates.content = updateTodoDto.content;
+    if (updateTodoDto.dueDate !== undefined)
+      updates.due_date = updateTodoDto.dueDate;
+    if (updateTodoDto.status !== undefined)
+      updates.status = updateTodoDto.status;
+    if (updateTodoDto.reason !== undefined)
+      updates.reason = updateTodoDto.reason;
+    if (updateTodoDto.deadlineType !== undefined)
+      updates.deadline_type = updateTodoDto.deadlineType as DeadlineType;
+
+    const response = await this.supabase
+      .from(TABLE_TODOS)
+      .update(updates)
+      .eq('id', todoId)
+      .eq('user_id', userId) // Ensure ownership
+      .select()
+      .single();
+
+    if (response.error) {
+      console.error(`Error updating todo ${todoId}:`, response.error);
+      throw new InternalServerErrorException('Failed to update todo');
+    }
+    if (!response.data) {
+      throw new NotFoundException(`Todo with ID ${todoId} not found`);
+    }
+    return response.data as LearningTodo;
+  }
+
+  async deleteTodo(
+    userId: number,
+    todoId: number,
+  ): Promise<{ message: string }> {
+    const { error } = await this.supabase
+      .from(TABLE_TODOS)
+      .delete()
+      .eq('id', todoId)
+      .eq('user_id', userId); // Ensure ownership
+
+    if (error) {
+      console.error(`Error deleting todo ${todoId}:`, error);
+      throw new InternalServerErrorException('Failed to delete todo');
+    }
+    return { message: 'Todo deleted successfully' };
   }
 }
