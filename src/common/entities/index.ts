@@ -4,7 +4,7 @@ export interface User {
   created_at: string;
 }
 
-export interface Review {
+export interface Note {
   id: number;
   user_id: number;
   title: string;
@@ -13,9 +13,9 @@ export interface Review {
   created_at: string;
 }
 
-export interface ReviewAnalysis {
+export interface NoteAnalysis {
   id: number;
-  review_id: number;
+  note_id: number;
   summary_json: any;
   skill_proposal_json: any;
   feedback_json: any;
@@ -25,7 +25,7 @@ export interface ReviewAnalysis {
 
 export interface FactCheck {
   id: number;
-  review_id: number;
+  note_id: number;
   original_text: string;
   verdict: 'TRUE' | 'FALSE' | 'PARTIALLY_TRUE';
   correction?: string;
@@ -43,7 +43,7 @@ export interface SkillNode {
 
 export interface LearningTodo {
   id: number;
-  review_id: number;
+  note_id: number;
   content: string;
   due_date?: string;
   status: 'PENDING' | 'COMPLETED';

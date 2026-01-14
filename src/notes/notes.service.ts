@@ -2,9 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OpenaiService } from '../openai/openai.service';
 import { CreateNoteDto } from './dto/create-notes.dto';
+import { UpdateNoteDto } from './dto/update-note.dto';
 import { OpenAIAnalysisResult } from './interfaces/openai-analysis-result.interface';
 import { NotesEntity } from './interfaces/notes-entity.interface';
 import { AnalysisEntity } from './interfaces/analysis-entity.interface';
+import { NoteAnalysisResponse } from './interfaces/note-analysis-response.interface';
 
 @Injectable()
 export class NotesService {
@@ -18,51 +20,58 @@ export class NotesService {
   }
 
   // Fixing type issues and unsafe assignments
-  async createNote(userId: number, createNoteDto: CreateNoteDto) {
-    if (createNoteDto && typeof createNoteDto === 'object') {
-      if (
-        typeof createNoteDto.title === 'string' &&
-        typeof createNoteDto.rawContent === 'string'
-      ) {
-        // 1. Save raw review
-        const response = (await this.supabase
-          .from('notes')
-          .insert({
-            user_id: userId,
-            title: createNoteDto.title,
-            raw_content: createNoteDto.rawContent,
-          })
-          .select()
-          .single()) as {
-          data: NotesEntity | null;
-          error: { message: string } | null;
-        };
-
-        if (response.error || !response.data) {
-          throw new Error(
-            `Failed to save review: ${response.error?.message || 'Unknown error'}`,
-          );
-        }
-
-        const review = response.data;
-
-        // 2. Trigger AI Analysis asynchronously
-        this.analyzeNotes(review.id, createNoteDto.rawContent).catch(
-          (err: unknown) => {
-            console.error('Error analyzing review:', err);
-          },
-        );
-
-        return {
-          reviewId: review.id,
-          status: 'ANALYZING',
-          message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
-        };
-      }
+  async createNote(
+    userId: number,
+    createNoteDto: CreateNoteDto,
+  ): Promise<{ noteId: number; status: string; message: string }> {
+    if (!createNoteDto || typeof createNoteDto.rawContent !== 'string') {
+      throw new Error('Invalid note data');
     }
+
+    const isAutoTitle = !createNoteDto.title;
+    const titleToSave = createNoteDto.title || 'Untitled Note';
+
+    // 1. Save raw Note
+    const response = (await this.supabase
+      .from('notes')
+      .insert({
+        user_id: userId,
+        title: titleToSave,
+        raw_content: createNoteDto.rawContent,
+      })
+      .select()
+      .single()) as {
+      data: NotesEntity | null;
+      error: { message: string } | null;
+    };
+
+    if (response.error || !response.data) {
+      throw new Error(
+        `Failed to save Note: ${response.error?.message || 'Unknown error'}`,
+      );
+    }
+
+    const note = response.data;
+
+    // 2. Trigger AI Analysis asynchronously
+    this.analyzeNotes(note.id, createNoteDto.rawContent, isAutoTitle).catch(
+      (err: unknown) => {
+        console.error('Error analyzing note:', err);
+      },
+    );
+
+    return {
+      noteId: note.id,
+      status: 'ANALYZING',
+      message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
+    };
   }
 
-  async analyzeNotes(noteId: number, rawContent: string) {
+  async analyzeNotes(
+    noteId: number,
+    rawContent: string,
+    updateTitle: boolean = false,
+  ) {
     // Call OpenAI
     const result = (await this.openaiService.analyzeNote(
       rawContent,
@@ -89,32 +98,38 @@ export class NotesService {
       return;
     }
 
-    // Save Refined Note
-    await this.supabase
-      .from('notes')
-      .update({ refined_content: analysisResult.refinedNote })
-      .eq('id', noteId);
+    // Prepare update data
+    const updateData: { refined_content: string; title?: string } = {
+      refined_content: analysisResult.refinedNote,
+    };
+
+    if (updateTitle && analysisResult.generatedTitle) {
+      updateData.title = analysisResult.generatedTitle;
+    }
+
+    // Save Refined Note (and optionally title)
+    await this.supabase.from('notes').update(updateData).eq('id', noteId);
   }
 
-  async getAnalysisResult(reviewId: number) {
-    const reviewResponse = (await this.supabase
+  async getAnalysisResult(noteId: number): Promise<NoteAnalysisResponse> {
+    const noteResponse = (await this.supabase
       .from('notes')
       .select('*')
-      .eq('id', reviewId)
+      .eq('id', noteId)
       .single()) as {
       data: NotesEntity | null;
       error: { message: string } | null;
     };
 
-    if (reviewResponse.error || !reviewResponse.data) {
-      throw new NotFoundException('Review not found');
+    if (noteResponse.error || !noteResponse.data) {
+      throw new NotFoundException('Note not found');
     }
-    const review = reviewResponse.data;
+    const note = noteResponse.data;
 
     const analysisResponse = (await this.supabase
       .from('notes_analysis')
       .select('*')
-      .eq('note_id', reviewId)
+      .eq('note_id', noteId)
       .single()) as {
       data: AnalysisEntity | null;
       error: { message: string } | null;
@@ -124,21 +139,67 @@ export class NotesService {
 
     if (!analysis) {
       return {
-        reviewId,
+        noteId,
+        title: note.title,
         status: 'ANALYZING',
         message: 'Analysis is still in progress.',
       };
     }
 
     return {
-      reviewId,
+      noteId,
+      title: note.title,
       status: 'COMPLETED',
-      refinedNote: review?.refined_content || null,
+      refinedNote: note?.refined_content || null,
       summary: analysis.summary_json,
       factChecks: analysis.fact_checks_json || [],
       feedback: analysis.feedback_json,
       skillUpdateProposal: analysis.skill_proposal_json,
       suggestedTodos: analysis.suggested_todos_json,
     };
+  }
+
+  async updateNote(
+    id: number,
+    userId: number,
+    updateNoteDto: UpdateNoteDto,
+  ): Promise<NotesEntity> {
+    const { title, refinedContent } = updateNoteDto;
+    const updates: Partial<NotesEntity> = {};
+    if (title !== undefined) updates.title = title;
+    if (refinedContent !== undefined) updates.refined_content = refinedContent;
+
+    const response = (await this.supabase
+      .from('notes')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single()) as {
+      data: NotesEntity | null;
+      error: { message: string } | null;
+    };
+
+    if (response.error || !response.data) {
+      throw new Error(
+        `Failed to update note: ${response.error?.message || 'Unknown error'}`,
+      );
+    }
+
+    return response.data;
+  }
+
+  async deleteNote(id: number, userId: number): Promise<{ message: string }> {
+    const { error } = await this.supabase
+      .from('notes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to delete note: ${error.message}`);
+    }
+
+    return { message: 'Note deleted successfully' };
   }
 }

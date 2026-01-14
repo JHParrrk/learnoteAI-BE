@@ -1,4 +1,5 @@
 export interface OpenAIAnalysisResult {
+  generatedTitle?: string;
   refinedNote: string;
   summary: Record<string, any>;
   factChecks: Array<{
