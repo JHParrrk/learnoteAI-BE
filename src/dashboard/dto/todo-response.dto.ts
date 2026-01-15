@@ -10,16 +10,16 @@ export class TodoResponseDto {
     description: 'ID of the related note',
     nullable: true,
   })
-  note_id: number | null;
+  noteId: number | null;
 
   @ApiProperty({ example: 1 })
-  user_id: number;
+  userId: number;
 
   @ApiProperty({ example: 'Review React Hooks' })
   content: string;
 
   @ApiProperty({ example: '2026-01-20', nullable: true })
-  due_date: string | null;
+  dueDate: string | null;
 
   @ApiProperty({ example: 'PENDING', enum: ['PENDING', 'COMPLETED'] })
   status: 'PENDING' | 'COMPLETED';
@@ -33,8 +33,8 @@ export class TodoResponseDto {
     description: 'Deadline type (SHORT_TERM or LONG_TERM)',
     nullable: true,
   })
-  deadline_type: DeadlineType | null;
+  deadlineType: DeadlineType | null;
 
   @ApiProperty({ example: '2026-01-14T12:00:00Z' })
-  created_at: string;
+  createdAt: string;
 }

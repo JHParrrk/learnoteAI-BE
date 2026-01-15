@@ -14,6 +14,18 @@ import { DeadlineType } from './interfaces/deadline-type.enum';
 
 const TABLE_TODOS = 'learning_todos';
 
+interface LearningTodoDbEntity {
+  id: number;
+  note_id: number | null;
+  user_id: number;
+  content: string;
+  due_date: string | null;
+  status: 'PENDING' | 'COMPLETED';
+  reason: string | null;
+  deadline_type: DeadlineType | null;
+  created_at: string;
+}
+
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
@@ -22,6 +34,20 @@ export class DashboardService {
 
   private get supabase() {
     return this.supabaseService.getClient();
+  }
+
+  private mapToLearningTodo(todo: LearningTodoDbEntity): LearningTodo {
+    return {
+      id: todo.id,
+      noteId: todo.note_id,
+      userId: todo.user_id,
+      content: todo.content,
+      dueDate: todo.due_date,
+      status: todo.status,
+      reason: todo.reason,
+      deadlineType: todo.deadline_type,
+      createdAt: todo.created_at,
+    };
   }
 
   async getDashboardSummary(userId: number): Promise<DashboardSummary> {
@@ -301,7 +327,7 @@ export class DashboardService {
         `Failed to create todo: ${response.error.message}`,
       );
     }
-    return response.data as LearningTodo;
+    return this.mapToLearningTodo(response.data as LearningTodoDbEntity);
   }
 
   async getTodos(userId: number): Promise<LearningTodo[]> {
@@ -315,7 +341,9 @@ export class DashboardService {
       console.error('Error fetching todos:', response.error);
       throw new InternalServerErrorException('Failed to fetch todos');
     }
-    return (response.data as LearningTodo[]) ?? [];
+    return ((response.data as unknown as LearningTodoDbEntity[]) ?? []).map(
+      (todo) => this.mapToLearningTodo(todo),
+    );
   }
 
   async updateTodo(
@@ -323,7 +351,7 @@ export class DashboardService {
     todoId: number,
     updateTodoDto: UpdateTodoDto,
   ): Promise<LearningTodo> {
-    const updates: Partial<LearningTodo> = {};
+    const updates: Partial<LearningTodoDbEntity> = {};
     if (updateTodoDto.content !== undefined)
       updates.content = updateTodoDto.content;
     if (updateTodoDto.dueDate !== undefined)
@@ -333,7 +361,7 @@ export class DashboardService {
     if (updateTodoDto.reason !== undefined)
       updates.reason = updateTodoDto.reason;
     if (updateTodoDto.deadlineType !== undefined)
-      updates.deadline_type = updateTodoDto.deadlineType as DeadlineType;
+      updates.deadline_type = updateTodoDto.deadlineType;
 
     const response = await this.supabase
       .from(TABLE_TODOS)
@@ -350,7 +378,7 @@ export class DashboardService {
     if (!response.data) {
       throw new NotFoundException(`Todo with ID ${todoId} not found`);
     }
-    return response.data as LearningTodo;
+    return this.mapToLearningTodo(response.data as LearningTodoDbEntity);
   }
 
   async deleteTodo(

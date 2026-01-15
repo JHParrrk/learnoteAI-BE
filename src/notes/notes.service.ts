@@ -20,6 +20,27 @@ const TABLE_NOTES = 'notes';
 const TABLE_NOTES_ANALYSIS = 'notes_analysis';
 const TABLE_LEARNING_TODOS = 'learning_todos';
 
+interface NotesDbEntity {
+  id: number;
+  user_id: number;
+  title: string;
+  raw_content: string;
+  refined_content: string | null;
+  created_at: string;
+}
+
+interface LearningTodoDbEntity {
+  id: number;
+  note_id: number;
+  user_id: number;
+  content: string;
+  due_date: string | null;
+  status: 'PENDING' | 'COMPLETED';
+  reason: string | null;
+  deadline_type: DeadlineType;
+  created_at: string;
+}
+
 @Injectable()
 export class NotesService {
   private readonly logger = new Logger(NotesService.name);
@@ -31,6 +52,17 @@ export class NotesService {
 
   private get supabase() {
     return this.supabaseService.getClient();
+  }
+
+  private mapToNoteEntity(note: NotesDbEntity): NotesEntity {
+    return {
+      id: note.id,
+      userId: note.user_id,
+      title: note.title,
+      rawContent: note.raw_content,
+      refinedContent: note.refined_content,
+      createdAt: note.created_at,
+    };
   }
 
   async createNote(
@@ -54,13 +86,13 @@ export class NotesService {
     const response = (await this.supabase
       .from(TABLE_NOTES)
       .insert({
-        user_id: userId,
+        user_id: userId, // DB: snake_case
         title: titleToSave,
-        raw_content: createNoteDto.rawContent,
+        raw_content: createNoteDto.rawContent, // DB: snake_case
       })
       .select()
       .single()) as unknown as {
-      data: NotesEntity | null;
+      data: NotesDbEntity | null;
       error: { message: string } | null;
     };
 
@@ -83,7 +115,7 @@ export class NotesService {
       noteId: note.id,
       status: 'ANALYZING',
       message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
-      rawContent: note.raw_content,
+      rawContent: note.raw_content, // Return camelCase
     };
   }
 
@@ -113,7 +145,7 @@ export class NotesService {
           skill_proposal_json: analysisResult.skillUpdateProposal,
           feedback_json: analysisResult.feedback,
           suggested_todos_json: analysisResult.suggestedTodos,
-          fact_checks_json: analysisResult.factChecks || [],
+          fact_checks_json: analysisResult.factChecks,
         })) as unknown as { error: { message: string } | null };
 
       if (insertError) {
@@ -154,7 +186,7 @@ export class NotesService {
       .select('*')
       .eq('id', noteId)
       .single()) as unknown as {
-      data: NotesEntity | null;
+      data: NotesDbEntity | null;
       error: { message: string } | null;
     };
 
@@ -204,7 +236,7 @@ export class NotesService {
     updateNoteDto: UpdateNoteDto,
   ): Promise<NotesEntity> {
     const { title, refinedContent } = updateNoteDto;
-    const updates: Partial<NotesEntity> = {};
+    const updates: Partial<NotesDbEntity> = {};
     if (title !== undefined) updates.title = title;
     if (refinedContent !== undefined) updates.refined_content = refinedContent;
 
@@ -219,7 +251,7 @@ export class NotesService {
       .eq('user_id', userId)
       .select()
       .single()) as unknown as {
-      data: NotesEntity | null;
+      data: NotesDbEntity | null;
       error: { message: string } | null;
     };
 
@@ -233,7 +265,7 @@ export class NotesService {
       );
     }
 
-    return response.data;
+    return this.mapToNoteEntity(response.data);
   }
 
   async deleteNote(id: number, userId: number): Promise<{ message: string }> {
@@ -294,6 +326,16 @@ export class NotesService {
       throw new InternalServerErrorException('Failed to save learning todos');
     }
 
-    return data;
+    return (data as unknown as LearningTodoDbEntity[]).map((todo) => ({
+      id: todo.id,
+      noteId: todo.note_id,
+      userId: todo.user_id,
+      content: todo.content,
+      dueDate: todo.due_date,
+      status: todo.status,
+      reason: todo.reason,
+      deadlineType: todo.deadline_type,
+      createdAt: todo.created_at,
+    }));
   }
 }

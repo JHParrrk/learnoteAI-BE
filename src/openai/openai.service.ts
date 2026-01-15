@@ -44,7 +44,7 @@ Structure:
         { role: 'user', content: rawContent },
       ],
       // model: 'gpt-3.5-turbo',
-      model: 'gpt-4',
+      model: 'gpt-4o',
       response_format: { type: 'json_object' },
     });
 
