@@ -13,16 +13,9 @@ import { ConfigModule } from '@nestjs/config';
     SupabaseModule,
     PassportModule,
     ConfigModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '1d' },
-    }),
+    JwtModule.register({}), // 설정을 비워두어 동적 처리 가능하게 함
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    LocalStrategy,
-    JwtStrategy, // ⭐ 이거 추가
-  ],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
 })
 export class AuthModule {}

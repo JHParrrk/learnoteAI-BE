@@ -3,100 +3,81 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '../common/entities/user.entity';
-import { DbUser } from './interfaces/db-user.interface';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
     private supabase: SupabaseService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  // 회원가입
   async signup(email: string, password: string, name: string) {
     const normalizedEmail = email.toLowerCase();
-
     if (password.length < 8) {
       throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
     }
 
-    const { data: existingUser } = await this.supabase
-      .getClient()
-      .from('users')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
+    const { data: existingUser } = await this.supabase.getClient()
+      .from('users').select('id').eq('email', normalizedEmail).maybeSingle();
 
-    if (existingUser) {
-      throw new ConflictException('이미 사용 중인 이메일입니다.');
-    }
+    if (existingUser) throw new ConflictException('이미 사용 중인 이메일입니다.');
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const { data, error } = await this.supabase.getClient()
+      .from('users').insert({ email: normalizedEmail, name, password: hashedPassword }).select().single();
 
-    const result = await this.supabase
-      .getClient()
-      .from('users')
-      .insert({
-        email: normalizedEmail,
-        name,
-        password: hashedPassword,
-      })
-      .select()
-      .single();
-
-    if (result.error || !result.data) {
-      throw new InternalServerErrorException(
-        '회원가입 중 오류가 발생했습니다.',
-      );
-    }
-
-    const createdUser = result.data as unknown as User;
-
-    return {
-      id: createdUser.id,
-      email: createdUser.email,
-      name: createdUser.name,
-    };
+    if (error) throw new InternalServerErrorException('회원가입 중 오류 발생');
+    return { id: data.id, email: data.email, name: data.name };
   }
 
-  async validateUser(email: string, password: string): Promise<User | null> {
-    email = email.toLowerCase();
+  async validateUser(email: string, password: string) {
+    const { data: user } = await this.supabase.getClient()
+      .from('users').select('*').eq('email', email.toLowerCase()).single();
 
-    const result = await this.supabase
-      .getClient()
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    if (result.error || !result.data) return null;
-
-    const user = result.data as unknown as DbUser;
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return null;
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      password: user.password,
-      createdAt: user.created_at,
-    };
+    if (user && (await bcrypt.compare(password, user.password))) return user;
+    return null;
   }
 
-  login(user: User) {
+  async login(user: any) {
     const payload = { sub: user.id, email: user.email };
 
     return {
       accessToken: this.jwtService.sign(payload, {
-        secret: process.env.JWT_SECRET,
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN'),
       }),
+      refreshToken: this.jwtService.sign(payload, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN'),
+      }),
+      user: { id: user.id, name: user.name, email: user.email },
     };
+  }
+
+  async refresh(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+
+      const accessToken = this.jwtService.sign(
+        { sub: payload.sub, email: payload.email },
+        {
+          secret: this.configService.get('JWT_SECRET'),
+          expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN'),
+        },
+      );
+
+      return { accessToken };
+    } catch (e) {
+      throw new UnauthorizedException('유효하지 않은 리프레시 토큰입니다.');
+    }
   }
 }
