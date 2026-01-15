@@ -7,7 +7,7 @@ import {
   RequestWithUser,
   RequestWithUserEntity,
 } from './interfaces/request-with-user.interface';
-import { ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -41,7 +41,7 @@ export class AuthController {
     description: 'User successfully logged in.',
     schema: {
       example: {
-        access_token: 'jwt-token-example',
+        accessToken: 'jwt-token-example',
       },
     },
   })
@@ -51,6 +51,7 @@ export class AuthController {
 
   // JWT 테스트
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('access-token')
   @Get('me')
   @ApiResponse({
     status: 200,

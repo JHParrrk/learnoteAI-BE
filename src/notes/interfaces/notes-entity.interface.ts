@@ -1,8 +1,8 @@
 export interface NotesEntity {
   id: number;
-  user_id: number;
+  userId: number;
   title: string;
-  raw_content: string;
-  refined_content: string | null;
-  created_at: string;
+  rawContent: string;
+  refinedContent: string | null;
+  createdAt: string;
 }

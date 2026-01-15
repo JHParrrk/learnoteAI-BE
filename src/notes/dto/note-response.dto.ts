@@ -77,19 +77,19 @@ export class NoteEntityDto {
   id: number;
 
   @ApiProperty({ example: 1 })
-  user_id: number;
+  userId: number;
 
   @ApiProperty({ example: 'Study Session: NestJS' })
   title: string;
 
   @ApiProperty({ example: 'Raw content...' })
-  raw_content: string;
+  rawContent: string;
 
   @ApiProperty({ example: 'Refined content...', nullable: true })
-  refined_content: string | null;
+  refinedContent: string | null;
 
   @ApiProperty({ example: '2026-01-14T10:00:00Z' })
-  created_at: string;
+  createdAt: string;
 }
 
 export class SimpleMessageResponseDto {

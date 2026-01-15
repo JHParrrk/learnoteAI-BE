@@ -9,7 +9,12 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { NotesService } from './notes.service';
 import { CreateNoteDto } from './dto/create-notes.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
@@ -26,6 +31,7 @@ import { AuthGuard } from '@nestjs/passport';
 import type { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
 @ApiTags('notes')
+@ApiBearerAuth('access-token')
 @Controller('notes')
 @UseGuards(AuthGuard('jwt')) // ✅ 노트 전체 JWT 보호 (핵심)
 export class NotesController {
