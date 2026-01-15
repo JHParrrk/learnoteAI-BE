@@ -1,5 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class NoteListItemDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 'Study Session: NestJS' })
+  title: string;
+
+  @ApiProperty({ example: '2026-01-14' })
+  createdAt: string;
+}
+
+export class NoteListResponseDto {
+  @ApiProperty({ isArray: true, type: NoteListItemDto })
+  items: NoteListItemDto[];
+
+  @ApiProperty({ example: 10 })
+  total: number;
+
+  @ApiProperty({ example: 1 })
+  page: number;
+
+  @ApiProperty({ example: 5 })
+  pageSize: number;
+}
+
 export class NoteCreateResponseDto {
   @ApiProperty({ example: 1 })
   noteId: number;

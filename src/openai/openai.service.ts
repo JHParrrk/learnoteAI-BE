@@ -54,6 +54,6 @@ Structure:
     if (content === null) {
       throw new Error('Content is null and cannot be parsed');
     }
-    return JSON.parse(content);
+    return JSON.parse(content) as OpenAIAnalysisResult;
   }
 }

@@ -30,21 +30,21 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-  .setTitle('LearnoteAI API')
-  .setDescription('API documentation for LearnoteAI')
-  .setVersion('1.0')
-  .addTag('dashboard', 'Endpoints related to user dashboard')
-  .addTag('notes', 'Endpoints related to user notes')
-  .addBearerAuth(
-    {
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-      in: 'header',
-    },
-    'access-token',
-  )
-  .build();
+    .setTitle('LearnoteAI API')
+    .setDescription('API documentation for LearnoteAI')
+    .setVersion('1.0')
+    .addTag('dashboard', 'Endpoints related to user dashboard')
+    .addTag('notes', 'Endpoints related to user notes')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        in: 'header',
+      },
+      'access-token',
+    )
+    .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

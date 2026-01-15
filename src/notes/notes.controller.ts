@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,6 +9,9 @@ import {
   Query,
   UseGuards,
   Req,
+  BadRequestException,
+  InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -32,6 +34,7 @@ import {
 } from './dto/note-response.dto';
 import { AuthGuard } from '@nestjs/passport';
 import type { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
+import { TodoResponseDto } from '../dashboard/dto/todo-response.dto';
 
 @ApiTags('notes')
 @ApiBearerAuth('access-token')
@@ -71,23 +74,37 @@ export class NotesController {
     type: NoteListResponseDto,
   })
   async listNotes(
-    @Query('userId') userId: string,
+    @Req() req: RequestWithUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-  ) {
-    const numericUserId = Number(userId);
-    if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
-      throw new BadRequestException('Invalid userId');
+  ): Promise<NoteListResponseDto> {
+    try {
+      const userId = req.user.userId;
+      const numericPage = page ? Number(page) : 1;
+      const numericPageSize = pageSize ? Number(pageSize) : 5;
+
+      if (isNaN(numericPage) || isNaN(numericPageSize)) {
+        throw new BadRequestException(
+          'Page and PageSize must be valid numbers',
+        );
+      }
+
+      const notesList = await this.notesService.listNotes(
+        userId,
+        numericPage,
+        numericPageSize,
+      );
+      return notesList;
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(
+        `Failed to retrieve notes: ${errorMessage}`,
+      );
     }
-
-    const numericPage = page ? Number(page) : 1;
-    const numericPageSize = pageSize ? Number(pageSize) : 5;
-
-    return this.notesService.listNotes(
-      numericUserId,
-      numericPage,
-      numericPageSize,
-    );
   }
 
   @Get(':id/analysis')
@@ -111,14 +128,14 @@ export class NotesController {
   @ApiResponse({
     status: 201,
     description: 'Todos saved successfully',
-    type: SimpleMessageResponseDto,
+    type: [TodoResponseDto],
   })
   async saveTodos(
     @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() saveTodosDto: SaveLearningTodosDto,
-  ): Promise<any> {
-    const userId = req.user.userId; // ✅ 변경
+  ): Promise<TodoResponseDto[]> {
+    const userId = req.user.userId;
     const numericId = Number(id);
     return this.notesService.saveLearningTodos(userId, numericId, saveTodosDto);
   }

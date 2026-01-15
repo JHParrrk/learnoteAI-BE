@@ -9,7 +9,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OpenaiService } from '../openai/openai.service';
 import { CreateNoteDto } from './dto/create-notes.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
+import { NoteListResponseDto, NoteListItemDto } from './dto/note-response.dto';
 import { SaveLearningTodosDto } from './dto/save-learning-todos.dto';
+import { TodoResponseDto } from '../dashboard/dto/todo-response.dto';
 import { OpenAIAnalysisResult } from './interfaces/openai-analysis-result.interface';
 import { NotesEntity } from './interfaces/notes-entity.interface';
 import { AnalysisEntity } from './interfaces/analysis-entity.interface';
@@ -215,12 +217,7 @@ export class NotesService {
     userId: number,
     page = 1,
     pageSize = 5,
-  ): Promise<{
-    items: Pick<NotesEntity, 'id' | 'title' | 'created_at'>[];
-    total: number;
-    page: number;
-    pageSize: number;
-  }> {
+  ): Promise<NoteListResponseDto> {
     if (!Number.isFinite(page) || page < 1) {
       throw new BadRequestException('page must be a positive number');
     }
@@ -245,15 +242,13 @@ export class NotesService {
     }
 
     return {
-      items: (
-        (response.data as Pick<NotesEntity, 'id' | 'title' | 'created_at'>[]) ??
-        []
-      ).map((item) => ({
-        ...item,
-        created_at: item.created_at
+      items: ((response.data as NotesDbEntity[]) ?? []).map((item) => ({
+        id: item.id,
+        title: item.title,
+        createdAt: item.created_at
           ? item.created_at.toString().slice(0, 10)
           : item.created_at,
-      })),
+      })) as NoteListItemDto[],
       total: response.count ?? 0,
       page,
       pageSize,
@@ -317,7 +312,7 @@ export class NotesService {
     userId: number,
     noteId: number,
     saveDto: SaveLearningTodosDto,
-  ): Promise<any[]> {
+  ): Promise<TodoResponseDto[]> {
     // Optional: Verify note exists and belongs to user
     const { data: note, error: noteError } = await this.supabase
       .from(TABLE_NOTES)

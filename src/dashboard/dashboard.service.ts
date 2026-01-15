@@ -10,7 +10,6 @@ import { ActivityItem } from './interfaces/activity-item.interface';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { LearningTodo } from './interfaces/todo.interface';
-import { DeadlineType } from './interfaces/deadline-type.enum';
 import { LearningTodoDbEntity } from './interfaces/learning-todo-db-entity.interface';
 
 const TABLE_TODOS = 'learning_todos';
@@ -353,12 +352,15 @@ export class DashboardService {
       updates.deadline_type = updateTodoDto.deadlineType;
 
     if (Object.keys(updates).length === 0) {
-      const { data: todo, error } = await this.supabase
+      const response = await this.supabase
         .from(TABLE_TODOS)
         .select('*')
         .eq('id', todoId)
         .eq('user_id', userId)
         .maybeSingle();
+
+      const error = response.error;
+      const todo = response.data as LearningTodoDbEntity | null;
 
       if (error) {
         console.error(`Error fetching todo ${todoId}:`, error);
@@ -367,7 +369,7 @@ export class DashboardService {
       if (!todo) {
         throw new NotFoundException(`Todo with ID ${todoId} not found`);
       }
-      return this.mapToLearningTodo(todo as LearningTodoDbEntity);
+      return this.mapToLearningTodo(todo);
     }
 
     const response = await this.supabase
