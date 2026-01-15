@@ -1,48 +1,42 @@
 import {
   Controller,
   Get,
-  Query,
   InternalServerErrorException,
   Post,
   Patch,
   Delete,
   Body,
   Param,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardSummaryDto } from './dto/dashboard-summary.dto';
-import { GetDashboardQueryDto } from './dto/get-dashboard-query.dto';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { LearningTodo } from './interfaces/todo.interface';
+import { AuthGuard } from '@nestjs/passport';
+import { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
 @ApiTags('dashboard')
+@ApiBearerAuth('access-token')
 @Controller('dashboard')
+@UseGuards(AuthGuard('jwt'))
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get dashboard summary for a user' })
+  @ApiOperation({ summary: 'Get dashboard summary for current user' })
   @ApiResponse({
     status: 200,
     description: 'Dashboard summary retrieved successfully',
     type: DashboardSummaryDto,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid query parameters',
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-  })
-  async getDashboard(
-    @Query() query: GetDashboardQueryDto,
-  ): Promise<DashboardSummaryDto> {
+  async getDashboard(@Req() req: RequestWithUser): Promise<DashboardSummaryDto> {
     try {
-      return await this.dashboardService.getDashboardSummary(query.userId);
+      return await this.dashboardService.getDashboardSummary(req.user.userId);
     } catch (error) {
       console.error('Error in getDashboard:', error);
       throw new InternalServerErrorException(
@@ -52,15 +46,14 @@ export class DashboardController {
   }
 
   @Get('todos')
-  @ApiOperation({ summary: 'Get all todos for a user' })
+  @ApiOperation({ summary: 'Get all todos for current user' })
   @ApiResponse({
     status: 200,
     description: 'List of todos',
     type: [TodoResponseDto],
   })
-  async getTodos(@Query('userId') userId: string): Promise<LearningTodo[]> {
-    const uid = Number(userId);
-    return this.dashboardService.getTodos(uid);
+  async getTodos(@Req() req: RequestWithUser): Promise<LearningTodo[]> {
+    return this.dashboardService.getTodos(req.user.userId);
   }
 
   @Post('todos')
@@ -71,15 +64,10 @@ export class DashboardController {
     type: TodoResponseDto,
   })
   async createTodo(
+    @Req() req: RequestWithUser,
     @Body() createTodoDto: CreateTodoDto,
-    @Query('userId') userId: string,
   ): Promise<LearningTodo> {
-    // Note: Assuming userId is passed via query as no auth guard yet; ideally from token
-    // If CreateTodoDto doesn't have userId, we pass it.
-    // Wait, CreateTodoDto doesn't have userId. The service createTodo takes userId separately.
-    // The user might not pass userId in body if they are authenticated, but here we are using query param.
-    const uid = Number(userId); // Or if we use auth guard, request.user.id
-    return this.dashboardService.createTodo(uid, createTodoDto);
+    return this.dashboardService.createTodo(req.user.userId, createTodoDto);
   }
 
   @Patch('todos/:id')
@@ -90,12 +78,11 @@ export class DashboardController {
     type: TodoResponseDto,
   })
   async updateTodo(
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() updateTodoDto: UpdateTodoDto,
-    @Query('userId') userId: string,
   ): Promise<LearningTodo> {
-    const uid = Number(userId);
-    return this.dashboardService.updateTodo(uid, Number(id), updateTodoDto);
+    return this.dashboardService.updateTodo(req.user.userId, Number(id), updateTodoDto);
   }
 
   @Delete('todos/:id')
@@ -105,10 +92,10 @@ export class DashboardController {
     description: 'Todo deleted successfully',
   })
   async deleteTodo(
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
-    @Query('userId') userId: string,
   ): Promise<{ message: string }> {
-    const uid = Number(userId);
-    return this.dashboardService.deleteTodo(uid, Number(id));
+    return this.dashboardService.deleteTodo(req.user.userId, Number(id));
   }
+}
 }
