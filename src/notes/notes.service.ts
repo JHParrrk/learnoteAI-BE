@@ -141,4 +141,152 @@ export class NotesService {
       suggestedTodos: analysis.suggested_todos_json,
     };
   }
+
+  async listNotes(
+    userId: number,
+    page = 1,
+    pageSize = 5,
+  ): Promise<{
+    items: Pick<NotesEntity, 'id' | 'title' | 'created_at'>[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    if (!Number.isFinite(page) || page < 1) {
+      throw new BadRequestException('page must be a positive number');
+    }
+
+    if (!Number.isFinite(pageSize) || pageSize < 1 || pageSize > 50) {
+      throw new BadRequestException('pageSize must be between 1 and 50');
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const response = await this.supabase
+      .from(TABLE_NOTES)
+      .select('id,title,created_at', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (response.error) {
+      this.logger.error('Failed to list notes', response.error);
+      throw new InternalServerErrorException('Failed to list notes');
+    }
+
+    return {
+      items: (
+        (response.data as Pick<NotesEntity, 'id' | 'title' | 'created_at'>[]) ??
+        []
+      ).map((item) => ({
+        ...item,
+        created_at: item.created_at
+          ? item.created_at.toString().slice(0, 10)
+          : item.created_at,
+      })),
+      total: response.count ?? 0,
+      page,
+      pageSize,
+    };
+  }
+
+  async updateNote(
+    id: number,
+    userId: number,
+    updateNoteDto: UpdateNoteDto,
+  ): Promise<NotesEntity> {
+    const { title, refinedContent } = updateNoteDto;
+    const updates: Partial<NotesEntity> = {};
+    if (title !== undefined) updates.title = title;
+    if (refinedContent !== undefined) updates.refined_content = refinedContent;
+
+    if (Object.keys(updates).length === 0) {
+      throw new BadRequestException('No fields to update provided.');
+    }
+
+    const response = (await this.supabase
+      .from(TABLE_NOTES)
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single()) as unknown as {
+      data: NotesEntity | null;
+      error: { message: string } | null;
+    };
+
+    if (response.error) {
+      this.logger.error(`Failed to update note ID: ${id}`, response.error);
+      throw new InternalServerErrorException('Failed to update note.');
+    }
+    if (!response.data) {
+      throw new NotFoundException(
+        `Note with ID ${id} not found for this user.`,
+      );
+    }
+
+    return response.data;
+  }
+
+  async deleteNote(id: number, userId: number): Promise<{ message: string }> {
+    const { error: noteError } = await this.supabase
+      .from(TABLE_NOTES)
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (noteError) {
+      this.logger.error(`Failed to delete note ID: ${id}`, noteError);
+      throw new InternalServerErrorException('Failed to delete note.');
+    }
+
+    return { message: 'Note and associated analysis deleted successfully' };
+  }
+
+  async saveLearningTodos(
+    userId: number,
+    noteId: number,
+    saveDto: SaveLearningTodosDto,
+  ): Promise<any[]> {
+    // Optional: Verify note exists and belongs to user
+    const { data: note, error: noteError } = await this.supabase
+      .from(TABLE_NOTES)
+      .select('id')
+      .eq('id', noteId)
+      .eq('user_id', userId)
+      .single();
+
+    if (noteError || !note) {
+      throw new NotFoundException(
+        `Note with ID ${noteId} not found or unauthorized`,
+      );
+    }
+
+    if (!saveDto.todos || saveDto.todos.length === 0) {
+      return [];
+    }
+
+    const todosToInsert = saveDto.todos.map((todo) => ({
+      note_id: noteId,
+      user_id: userId,
+      content: todo.content,
+      reason: todo.reason,
+      due_date: todo.dueDate,
+      deadline_type: todo.deadlineType as DeadlineType,
+      status: 'PENDING',
+    }));
+
+    const { data, error } = await this.supabase
+      .from(TABLE_LEARNING_TODOS)
+      .insert(todosToInsert)
+      .select();
+
+    if (error) {
+      this.logger.error(`Failed to save learning todos: ${error.message}`);
+      throw new InternalServerErrorException('Failed to save learning todos');
+    }
+
+    return data;
+  }
 }
