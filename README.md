@@ -121,3 +121,51 @@ Request Body:
 **GET** `http://localhost:3000/notes/:id/analysis`
 
 Replace `17` with the ID of the note you want to retrieve the analysis for.
+
+
+
+### 1. 회원가입
+POST /auth/signup
+body:
+{
+  "email": string,
+  "password": string,
+  "name": string
+}
+
+- email은 중복될 수 없습니다.
+- password는 최소 8자 이상이어야 합니다.(스웨거에 올린 로그인은 초기에 만든 테스트계정이라 4자리입니다)
+- 이미 가입된 이메일일 경우 400 에러가 반환됩니다.
+
+### 2. 로그인
+POST /auth/login
+body:
+{
+  "email": string,
+  "password": string
+}
+
+
+
+
+- 로그인 성공 시 JWT access token이 발급됩니다.
+- 이메일 또는 비밀번호가 올바르지 않을 경우 401 에러가 반환됩니다.
+
+response:
+{
+  "accessToken": string
+}
+
+### 3. 인증이 필요한 API 호출 방법
+
+- 로그인 후 발급받은 accessToken을 아래 형식으로 전달해야 합니다.
+
+Header:
+Authorization: Bearer {accessToken}
+
+
+### 4. 토큰 유효성 확인 (테스트용으로 사용했음)
+GET /auth/me
+
+- accessToken이 유효한 경우 현재 로그인된 사용자 정보를 반환합니다.
+- 토큰이 없거나 유효하지 않을 경우 401 에러가 반환됩니다.

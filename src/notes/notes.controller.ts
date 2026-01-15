@@ -6,6 +6,8 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { NotesService } from './notes.service';
@@ -20,12 +22,17 @@ import {
   NoteEntityDto,
   SimpleMessageResponseDto,
 } from './dto/note-response.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('notes')
-@Controller('notes') // API prefix is usually global, set in main.ts
+@Controller('notes')
+@UseGuards(AuthGuard('jwt')) // ✅ 노트 전체 JWT 보호 (핵심)
 export class NotesController {
   constructor(private readonly notesService: NotesService) {}
 
+  // =========================
+  // 노트 생성
+  // =========================
   @Post()
   @ApiOperation({ summary: 'Create a new note' })
   @ApiResponse({
@@ -33,18 +40,22 @@ export class NotesController {
     description: 'Note created successfully',
     type: NoteCreateResponseDto,
   })
-  async createNote(@Body() createNoteDto: CreateNoteDto): Promise<{
+  async createNote(
+    @Request() req,
+    @Body() createNoteDto: CreateNoteDto,
+  ): Promise<{
     noteId: number;
     status: string;
     message: string;
     rawContent: string;
   }> {
-    // Assuming simple auth or no auth for now. Hardcoding userId = 1 for MVP.
-    // In real app, get user from request context (Guard/Passport).
-    const userId = 1;
+    const userId = req.user.userId; // ✅ JWT에서 유저 ID
     return this.notesService.createNote(userId, createNoteDto);
   }
 
+  // =========================
+  // 노트 분석 결과 조회
+  // =========================
   @Get(':id/analysis')
   @ApiOperation({ summary: 'Get analysis result for a note' })
   @ApiResponse({
@@ -52,13 +63,16 @@ export class NotesController {
     description: 'Analysis result retrieved',
     type: NoteAnalysisResponseDto,
   })
-  async getAnalysis(@Param('id') id: string): Promise<NoteAnalysisResponse> {
-    console.log('Received ID from request:', id); // 요청에서 받은 ID 확인
+  async getAnalysis(
+    @Param('id') id: string,
+  ): Promise<NoteAnalysisResponse> {
     const numericId = Number(id);
-    console.log('Converted ID to number:', numericId); // 숫자로 변환된 ID 확인
     return this.notesService.getAnalysisResult(numericId);
   }
 
+  // =========================
+  // 학습 TODO 저장
+  // =========================
   @Post(':id/todos')
   @ApiOperation({ summary: 'Save learning todos for a note' })
   @ApiResponse({
@@ -67,14 +81,22 @@ export class NotesController {
     type: SimpleMessageResponseDto,
   })
   async saveTodos(
+    @Request() req,
     @Param('id') id: string,
     @Body() saveTodosDto: SaveLearningTodosDto,
   ): Promise<any> {
-    const userId = 1;
+    const userId = req.user.userId; // ✅ 변경
     const numericId = Number(id);
-    return this.notesService.saveLearningTodos(userId, numericId, saveTodosDto);
+    return this.notesService.saveLearningTodos(
+      userId,
+      numericId,
+      saveTodosDto,
+    );
   }
 
+  // =========================
+  // 노트 수정
+  // =========================
   @Patch(':id')
   @ApiOperation({ summary: 'Update a note' })
   @ApiResponse({
@@ -83,14 +105,22 @@ export class NotesController {
     type: NoteEntityDto,
   })
   async updateNote(
+    @Request() req,
     @Param('id') id: string,
     @Body() updateNoteDto: UpdateNoteDto,
   ): Promise<NotesEntity> {
-    const userId = 1;
+    const userId = req.user.userId; // ✅ 변경
     const numericId = Number(id);
-    return this.notesService.updateNote(numericId, userId, updateNoteDto);
+    return this.notesService.updateNote(
+      numericId,
+      userId,
+      updateNoteDto,
+    );
   }
 
+  // =========================
+  // 노트 삭제
+  // =========================
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a note' })
   @ApiResponse({
@@ -98,8 +128,11 @@ export class NotesController {
     description: 'Note deleted successfully',
     type: SimpleMessageResponseDto,
   })
-  async deleteNote(@Param('id') id: string): Promise<{ message: string }> {
-    const userId = 1;
+  async deleteNote(
+    @Request() req,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    const userId = req.user.userId; // ✅ 변경
     const numericId = Number(id);
     return this.notesService.deleteNote(numericId, userId);
   }
