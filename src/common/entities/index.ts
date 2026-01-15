@@ -1,10 +1,5 @@
 import { DeadlineType } from '../../dashboard/interfaces/deadline-type.enum';
-
-export interface User {
-  id: number;
-  email?: string;
-  created_at: string;
-}
+export * from './user.entity';
 
 export interface Note {
   id: number;

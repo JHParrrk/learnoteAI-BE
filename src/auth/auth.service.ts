@@ -1,7 +1,10 @@
+
 import { Injectable, UnauthorizedException, BadRequestException, ConflictException, InternalServerErrorException} from '@nestjs/common';
+
 import { SupabaseService } from '../supabase/supabase.service';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
+import { User } from '../common/entities/user.entity';
 
 
 @Injectable()
@@ -13,6 +16,7 @@ export class AuthService {
 
   // 회원가입
   async signup(email: string, password: string, name: string) {
+
   //  이메일 정규화
   const normalizedEmail = email.toLowerCase();
 
@@ -53,12 +57,32 @@ export class AuthService {
     throw new InternalServerErrorException('회원가입 중 오류가 발생했습니다.');
   }
 
-  return {
-    id: data.id,
-    email: data.email,
-    name: data.name,
-  };
-}
+
+    // ✅ 3. DB 저장
+    const result = await this.supabase
+      .getClient()
+      .from('users')
+      .insert({
+        email,
+        name,
+        password: hashedPassword,
+      })
+      .select()
+      .single();
+
+    if (result.error) {
+      throw new BadRequestException(result.error.message);
+    }
+
+    const createdUser = result.data as User;
+
+    return {
+      id: createdUser.id,
+      email: createdUser.email,
+      name: createdUser.name,
+    };
+  }
+
 
 
   //  로그인 검증 (LocalStrategy가 호출)
@@ -73,6 +97,7 @@ export class AuthService {
     .eq('email', email)
     .single();
 
+
   // 이메일이 없을경우
   if (!user) return null;
   // 비밀번호 불일치할경우
@@ -81,6 +106,7 @@ export class AuthService {
 
   return user;
 }
+
 
   //  JWT 발급
   login(user: any) {
@@ -91,5 +117,4 @@ export class AuthService {
       secret: process.env.JWT_SECRET, 
     }),
   };
-}
 }

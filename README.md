@@ -2,30 +2,60 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+# LearnoTe AI Backend API Documentation
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+이 문서는 API 명세서입니다.
+Base URL: `http://localhost:3000` (로컬 환경 기준)
 
-## Description
+## 📚 API 목록
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### 1. 인증 (Authentication) - `/auth`
 
-## Project setup
+| Method | Endpoint       | 설명                    | Request Body / Params       | Response                               |
+| :----- | :------------- | :---------------------- | :-------------------------- | :------------------------------------- |
+| `POST` | `/auth/signup` | 회원가입                | `{ email, password, name }` | `{ id, email, name }`                  |
+| `POST` | `/auth/login`  | 로그인                  | `{ email, password }`       | `{ access_token }`                     |
+| `GET`  | `/auth/me`     | 내 정보 조회 (JWT 필수) | `Header: Bearer <token>`    | `{ message, user: { userId, email } }` |
+
+### 2. 대시보드 (Dashboard) - `/dashboard`
+
+| Method  | Endpoint               | 설명               | Request Body / Params                                  | Response              |
+| :------ | :--------------------- | :----------------- | :----------------------------------------------------- | :-------------------- |
+| `GET`   | `/dashboard`           | 대시보드 요약 조회 | Query: `?userId=1`                                     | `DashboardSummaryDto` |
+| `GET`   | `/dashboard/todos`     | 투두 리스트 조회   | Query: `?userId=1`                                     | `LearningTodo[]`      |
+| `POST`  | `/dashboard/todos`     | 투두 생성          | Body: `CreateTodoDto`, Query: `?userId=1`              | `LearningTodo`        |
+| `PATCH` | `/dashboard/todos/:id` | 투두 수정          | Body: `UpdateTodoDto`, Param: `id`, Query: `?userId=1` | `LearningTodo`        |
+
+**DTO 상세:**
+
+- **CreateTodoDto**:
+  - `content` (string, 필수): 투두 내용
+  - `noteId` (number, 선택): 연결할 노트 ID - 노트와 연계되어서가 아닌 개인 목표 추가할때 사용
+  - `dueDate` (string, 선택): 마감일 (ISO Date String)
+  - `reason` (string, 선택): 생성 이유
+  - `deadlineType` (enum, 선택): 'SHORT_TERM' | 'LONG_TERM'
+
+### 3. 노트 (Notes) - `/notes` (JWT 필수)
+
+모든 요청에 `Authorization: Bearer <token>` 헤더가 필요합니다.
+
+| Method  | Endpoint              | 설명                     | Request Body / Params                 | Response                                  |
+| :------ | :-------------------- | :----------------------- | :------------------------------------ | :---------------------------------------- |
+| `POST`  | `/notes`              | 노트 생성 (AI 분석 시작) | `{ rawContent, title?, date? }`       | `{ noteId, status, message, rawContent }` |
+| `GET`   | `/notes/:id/analysis` | 노트 분석 결과 조회      | Param: `id` (Note ID)                 | `NoteAnalysisResponse`                    |
+| `POST`  | `/notes/:id/todos`    | 학습 투두 저장           | Param: `id`, Body: `{ todos: [...] }` | `SimpleMessageResponse`                   |
+| `PATCH` | `/notes/:id`          | 노트 수정                | Param: `id`, Body: `UpdateNoteDto`    | `NoteEntity`                              |
+
+**DTO 상세:**
+
+- **CreateNoteDto**:
+  - `rawContent` (string, 필수): 노트 원문 내용
+  - `title` (string, 선택): 노트 제목
+  - `date` (string, 선택): 노트 날짜
+
+---
+
+## 🛠 Project Setup
 
 ```bash
 $ npm install
@@ -56,116 +86,3 @@ $ npm run test:e2e
 # test coverage
 $ npm run test:cov
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-
-## Usage
-
-### Create a Note
-
-swagger
-
-'http://localhost:3000/api'
-
-**POST** `http://localhost:3000/notes`
-
-Request Body:
-
-```json
-{
-  "title": "테스트21",
-  "rawContent": "출력할 수 있는 모든 테스트 출력앖이 빠짐없이 출력되었으면 합니다"
-}
-```
-
-### Get Analysis Result
-
-**GET** `http://localhost:3000/notes/:id/analysis`
-
-Replace `17` with the ID of the note you want to retrieve the analysis for.
-
-
-
-### 1. 회원가입
-POST /auth/signup
-body:
-{
-  "email": string,
-  "password": string,
-  "name": string
-}
-
-- email은 중복될 수 없습니다.
-- password는 최소 8자 이상이어야 합니다.(스웨거에 올린 로그인은 초기에 만든 테스트계정이라 4자리입니다)
-- 이미 가입된 이메일일 경우 400 에러가 반환됩니다.
-
-### 2. 로그인
-POST /auth/login
-body:
-{
-  "email": string,
-  "password": string
-}
-
-
-
-
-- 로그인 성공 시 JWT access token이 발급됩니다.
-- 이메일 또는 비밀번호가 올바르지 않을 경우 401 에러가 반환됩니다.
-
-response:
-{
-  "accessToken": string
-}
-
-### 3. 인증이 필요한 API 호출 방법
-
-- 로그인 후 발급받은 accessToken을 아래 형식으로 전달해야 합니다.
-
-Header:
-Authorization: Bearer {accessToken}
-
-
-### 4. 토큰 유효성 확인 (테스트용으로 사용했음)
-GET /auth/me
-
-- accessToken이 유효한 경우 현재 로그인된 사용자 정보를 반환합니다.
-- 토큰이 없거나 유효하지 않을 경우 401 에러가 반환됩니다.
