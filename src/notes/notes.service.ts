@@ -1,13 +1,31 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OpenaiService } from '../openai/openai.service';
 import { CreateNoteDto } from './dto/create-notes.dto';
+import { UpdateNoteDto } from './dto/update-note.dto';
+import { SaveLearningTodosDto } from './dto/save-learning-todos.dto';
 import { OpenAIAnalysisResult } from './interfaces/openai-analysis-result.interface';
 import { NotesEntity } from './interfaces/notes-entity.interface';
 import { AnalysisEntity } from './interfaces/analysis-entity.interface';
+import { NoteAnalysisResponse } from './interfaces/note-analysis-response.interface';
+import { DeadlineType } from '../dashboard/interfaces/deadline-type.enum';
+import { NotesDbEntity } from './interfaces/notes-db-entity.interface';
+import { LearningTodoDbEntity } from '../dashboard/interfaces/learning-todo-db-entity.interface';
+
+const TABLE_NOTES = 'notes';
+const TABLE_NOTES_ANALYSIS = 'notes_analysis';
+const TABLE_LEARNING_TODOS = 'learning_todos';
 
 @Injectable()
 export class NotesService {
+  private readonly logger = new Logger(NotesService.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly openaiService: OpenaiService,
@@ -17,123 +35,174 @@ export class NotesService {
     return this.supabaseService.getClient();
   }
 
-  // Fixing type issues and unsafe assignments
-  async createNote(userId: number, createNoteDto: CreateNoteDto) {
-    if (createNoteDto && typeof createNoteDto === 'object') {
-      if (
-        typeof createNoteDto.title === 'string' &&
-        typeof createNoteDto.rawContent === 'string'
-      ) {
-        // 1. Save raw review
-        const response = (await this.supabase
-          .from('notes')
-          .insert({
-            user_id: userId,
-            title: createNoteDto.title,
-            raw_content: createNoteDto.rawContent,
-          })
-          .select()
-          .single()) as {
-          data: NotesEntity | null;
-          error: { message: string } | null;
-        };
-
-        if (response.error || !response.data) {
-          throw new Error(
-            `Failed to save review: ${response.error?.message || 'Unknown error'}`,
-          );
-        }
-
-        const review = response.data;
-
-        // 2. Trigger AI Analysis asynchronously
-        this.analyzeNotes(review.id, createNoteDto.rawContent).catch(
-          (err: unknown) => {
-            console.error('Error analyzing review:', err);
-          },
-        );
-
-        return {
-          reviewId: review.id,
-          status: 'ANALYZING',
-          message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
-        };
-      }
-    }
+  private mapToNoteEntity(note: NotesDbEntity): NotesEntity {
+    return {
+      id: note.id,
+      userId: note.user_id,
+      title: note.title,
+      rawContent: note.raw_content,
+      refinedContent: note.refined_content,
+      createdAt: note.created_at,
+    };
   }
 
-  async analyzeNotes(noteId: number, rawContent: string) {
-    // Call OpenAI
-    const result = (await this.openaiService.analyzeNote(
-      rawContent,
-    )) as unknown;
-
-    if (!result || typeof result !== 'object') {
-      throw new Error('Invalid analysis result from OpenAI service');
+  async createNote(
+    userId: number,
+    createNoteDto: CreateNoteDto,
+  ): Promise<{
+    noteId: number;
+    status: string;
+    message: string;
+    rawContent: string;
+  }> {
+    if (!createNoteDto?.rawContent) {
+      throw new BadRequestException(
+        'Invalid note data: rawContent is required.',
+      );
     }
 
-    const analysisResult = result as OpenAIAnalysisResult;
+    const isAutoTitle = !createNoteDto.title;
+    const titleToSave = createNoteDto.title || 'Untitled Note';
 
-    // Save Analysis Result
-    const insertResponse = (await this.supabase.from('notes_analysis').insert({
-      note_id: noteId,
-      summary_json: analysisResult.summary,
-      skill_proposal_json: analysisResult.skillUpdateProposal,
-      feedback_json: analysisResult.feedback,
-      suggested_todos_json: analysisResult.suggestedTodos,
-      fact_checks_json: analysisResult.factChecks || [],
-    })) as { error: { message: string } | null };
-
-    if (insertResponse.error) {
-      console.error('Failed to save analysis', insertResponse.error);
-      return;
-    }
-
-    // Save Refined Note
-    await this.supabase
-      .from('notes')
-      .update({ refined_content: analysisResult.refinedNote })
-      .eq('id', noteId);
-  }
-
-  async getAnalysisResult(reviewId: number) {
-    const reviewResponse = (await this.supabase
-      .from('notes')
-      .select('*')
-      .eq('id', reviewId)
-      .single()) as {
-      data: NotesEntity | null;
+    const response = (await this.supabase
+      .from(TABLE_NOTES)
+      .insert({
+        user_id: userId, // DB: snake_case
+        title: titleToSave,
+        raw_content: createNoteDto.rawContent, // DB: snake_case
+      })
+      .select()
+      .single()) as unknown as {
+      data: NotesDbEntity | null;
       error: { message: string } | null;
     };
 
-    if (reviewResponse.error || !reviewResponse.data) {
-      throw new NotFoundException('Review not found');
+    if (response.error || !response.data) {
+      this.logger.error('Failed to save Note', response.error);
+      throw new InternalServerErrorException(
+        `Failed to save Note: ${response.error?.message || 'Unknown error'}`,
+      );
     }
-    const review = reviewResponse.data;
+
+    const note = response.data;
+
+    this.analyzeNotes(note.id, createNoteDto.rawContent, isAutoTitle).catch(
+      (err) => {
+        this.logger.error(`Error analyzing note ID: ${note.id}`, err);
+      },
+    );
+
+    return {
+      noteId: note.id,
+      status: 'ANALYZING',
+      message: '노트가 저장되었으며, AI 분석이 시작되었습니다.',
+      rawContent: note.raw_content, // Return camelCase
+    };
+  }
+
+  async analyzeNotes(
+    noteId: number,
+    rawContent: string,
+    updateTitle = false,
+  ): Promise<void> {
+    try {
+      const result = (await this.openaiService.analyzeNote(
+        rawContent,
+      )) as unknown;
+
+      if (!result || typeof result !== 'object' || !('refinedNote' in result)) {
+        throw new InternalServerErrorException(
+          'Invalid analysis result from OpenAI service',
+        );
+      }
+
+      const analysisResult = result as OpenAIAnalysisResult;
+
+      const { error: insertError } = (await this.supabase
+        .from(TABLE_NOTES_ANALYSIS)
+        .insert({
+          note_id: noteId,
+          summary_json: analysisResult.summary,
+          skill_proposal_json: analysisResult.skillUpdateProposal,
+          feedback_json: analysisResult.feedback,
+          suggested_todos_json: analysisResult.suggestedTodos,
+          fact_checks_json: analysisResult.factChecks,
+        })) as unknown as { error: { message: string } | null };
+
+      if (insertError) {
+        this.logger.error(
+          `Failed to save analysis for note ID: ${noteId}`,
+          insertError,
+        );
+        return;
+      }
+
+      const updateData: { refined_content: string; title?: string } = {
+        refined_content: analysisResult.refinedNote,
+      };
+
+      if (updateTitle && analysisResult.generatedTitle) {
+        updateData.title = analysisResult.generatedTitle;
+      }
+
+      const { error: updateError } = (await this.supabase
+        .from(TABLE_NOTES)
+        .update(updateData)
+        .eq('id', noteId)) as unknown as { error: { message: string } | null };
+
+      if (updateError) {
+        this.logger.error(
+          `Failed to update note with refined content for note ID: ${noteId}`,
+          updateError,
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Analysis failed for note ID: ${noteId}`, error);
+    }
+  }
+
+  async getAnalysisResult(noteId: number): Promise<NoteAnalysisResponse> {
+    const noteResponse = (await this.supabase
+      .from(TABLE_NOTES)
+      .select('*')
+      .eq('id', noteId)
+      .single()) as unknown as {
+      data: NotesDbEntity | null;
+      error: { message: string } | null;
+    };
+
+    if (noteResponse.error || !noteResponse.data) {
+      throw new NotFoundException(`Note with ID ${noteId} not found.`);
+    }
+    const note = noteResponse.data;
 
     const analysisResponse = (await this.supabase
-      .from('notes_analysis')
+      .from(TABLE_NOTES_ANALYSIS)
       .select('*')
-      .eq('note_id', reviewId)
-      .single()) as {
+      .eq('note_id', noteId)
+      .single()) as unknown as {
       data: AnalysisEntity | null;
       error: { message: string } | null;
     };
 
-    const analysis = analysisResponse.data;
-
-    if (!analysis) {
+    if (analysisResponse.error || !analysisResponse.data) {
       return {
-        reviewId,
+        noteId,
+        title: note.title,
         status: 'ANALYZING',
+        rawContent: note.raw_content || null,
         message: 'Analysis is still in progress.',
       };
     }
 
+    const analysis = analysisResponse.data;
+
     return {
-      reviewId,
+      noteId,
+      title: note.title,
       status: 'COMPLETED',
-      refinedNote: review?.refined_content || null,
+      rawContent: note.raw_content || null,
+      refinedNote: note.refined_content || null,
       summary: analysis.summary_json,
       factChecks: analysis.fact_checks_json || [],
       feedback: analysis.feedback_json,
@@ -197,7 +266,7 @@ export class NotesService {
     updateNoteDto: UpdateNoteDto,
   ): Promise<NotesEntity> {
     const { title, refinedContent } = updateNoteDto;
-    const updates: Partial<NotesEntity> = {};
+    const updates: Partial<NotesDbEntity> = {};
     if (title !== undefined) updates.title = title;
     if (refinedContent !== undefined) updates.refined_content = refinedContent;
 
@@ -212,7 +281,7 @@ export class NotesService {
       .eq('user_id', userId)
       .select()
       .single()) as unknown as {
-      data: NotesEntity | null;
+      data: NotesDbEntity | null;
       error: { message: string } | null;
     };
 
@@ -226,7 +295,7 @@ export class NotesService {
       );
     }
 
-    return response.data;
+    return this.mapToNoteEntity(response.data);
   }
 
   async deleteNote(id: number, userId: number): Promise<{ message: string }> {
@@ -287,6 +356,16 @@ export class NotesService {
       throw new InternalServerErrorException('Failed to save learning todos');
     }
 
-    return data;
+    return (data as unknown as LearningTodoDbEntity[]).map((todo) => ({
+      id: todo.id,
+      noteId: todo.note_id,
+      userId: todo.user_id,
+      content: todo.content,
+      dueDate: todo.due_date,
+      status: todo.status,
+      reason: todo.reason,
+      deadlineType: todo.deadline_type,
+      createdAt: todo.created_at,
+    }));
   }
 }

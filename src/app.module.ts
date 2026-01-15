@@ -6,6 +6,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { OpenaiModule } from './openai/openai.module';
 import { NotesModule } from './notes/notes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -16,6 +17,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     OpenaiModule,
     NotesModule,
     DashboardModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
