@@ -10,7 +10,12 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardSummaryDto } from './dto/dashboard-summary.dto';
 import { CreateTodoDto } from './dto/create-todo.dto';
@@ -34,7 +39,9 @@ export class DashboardController {
     description: 'Dashboard summary retrieved successfully',
     type: DashboardSummaryDto,
   })
-  async getDashboard(@Req() req: RequestWithUser): Promise<DashboardSummaryDto> {
+  async getDashboard(
+    @Req() req: RequestWithUser,
+  ): Promise<DashboardSummaryDto> {
     try {
       return await this.dashboardService.getDashboardSummary(req.user.userId);
     } catch (error) {
@@ -82,7 +89,11 @@ export class DashboardController {
     @Param('id') id: string,
     @Body() updateTodoDto: UpdateTodoDto,
   ): Promise<LearningTodo> {
-    return this.dashboardService.updateTodo(req.user.userId, Number(id), updateTodoDto);
+    return this.dashboardService.updateTodo(
+      req.user.userId,
+      Number(id),
+      updateTodoDto,
+    );
   }
 
   @Delete('todos/:id')
@@ -97,5 +108,4 @@ export class DashboardController {
   ): Promise<{ message: string }> {
     return this.dashboardService.deleteTodo(req.user.userId, Number(id));
   }
-}
 }
