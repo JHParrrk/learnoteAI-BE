@@ -27,6 +27,7 @@ export class OpenaiService {
 4. 사용자의 기술 수준을 반영한 피드백 제공 (feedback)
 5. Actionable Todo를 제안하여 발전 방향을 제시 (suggestedTodos)
 6. 스킬 트리 업데이트 제안 (666)
+7. 한국어로 응답
 
 Return JSON only.
 Structure:
