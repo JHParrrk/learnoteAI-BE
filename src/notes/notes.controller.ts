@@ -7,7 +7,7 @@ import {
   Patch,
   Post,
   UseGuards,
-  Request,
+  Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { NotesService } from './notes.service';
@@ -23,6 +23,7 @@ import {
   SimpleMessageResponseDto,
 } from './dto/note-response.dto';
 import { AuthGuard } from '@nestjs/passport';
+import type { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
 @ApiTags('notes')
 @Controller('notes')
@@ -41,7 +42,7 @@ export class NotesController {
     type: NoteCreateResponseDto,
   })
   async createNote(
-    @Request() req,
+    @Req() req: RequestWithUser,
     @Body() createNoteDto: CreateNoteDto,
   ): Promise<{
     noteId: number;
@@ -63,9 +64,7 @@ export class NotesController {
     description: 'Analysis result retrieved',
     type: NoteAnalysisResponseDto,
   })
-  async getAnalysis(
-    @Param('id') id: string,
-  ): Promise<NoteAnalysisResponse> {
+  async getAnalysis(@Param('id') id: string): Promise<NoteAnalysisResponse> {
     const numericId = Number(id);
     return this.notesService.getAnalysisResult(numericId);
   }
@@ -81,17 +80,13 @@ export class NotesController {
     type: SimpleMessageResponseDto,
   })
   async saveTodos(
-    @Request() req,
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() saveTodosDto: SaveLearningTodosDto,
   ): Promise<any> {
     const userId = req.user.userId; // ✅ 변경
     const numericId = Number(id);
-    return this.notesService.saveLearningTodos(
-      userId,
-      numericId,
-      saveTodosDto,
-    );
+    return this.notesService.saveLearningTodos(userId, numericId, saveTodosDto);
   }
 
   // =========================
@@ -105,17 +100,13 @@ export class NotesController {
     type: NoteEntityDto,
   })
   async updateNote(
-    @Request() req,
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() updateNoteDto: UpdateNoteDto,
   ): Promise<NotesEntity> {
     const userId = req.user.userId; // ✅ 변경
     const numericId = Number(id);
-    return this.notesService.updateNote(
-      numericId,
-      userId,
-      updateNoteDto,
-    );
+    return this.notesService.updateNote(numericId, userId, updateNoteDto);
   }
 
   // =========================
@@ -129,7 +120,7 @@ export class NotesController {
     type: SimpleMessageResponseDto,
   })
   async deleteNote(
-    @Request() req,
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
   ): Promise<{ message: string }> {
     const userId = req.user.userId; // ✅ 변경
