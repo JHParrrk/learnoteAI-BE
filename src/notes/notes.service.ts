@@ -15,31 +15,12 @@ import { NotesEntity } from './interfaces/notes-entity.interface';
 import { AnalysisEntity } from './interfaces/analysis-entity.interface';
 import { NoteAnalysisResponse } from './interfaces/note-analysis-response.interface';
 import { DeadlineType } from '../dashboard/interfaces/deadline-type.enum';
+import { NotesDbEntity } from './interfaces/notes-db-entity.interface';
+import { LearningTodoDbEntity } from '../dashboard/interfaces/learning-todo-db-entity.interface';
 
 const TABLE_NOTES = 'notes';
 const TABLE_NOTES_ANALYSIS = 'notes_analysis';
 const TABLE_LEARNING_TODOS = 'learning_todos';
-
-interface NotesDbEntity {
-  id: number;
-  user_id: number;
-  title: string;
-  raw_content: string;
-  refined_content: string | null;
-  created_at: string;
-}
-
-interface LearningTodoDbEntity {
-  id: number;
-  note_id: number;
-  user_id: number;
-  content: string;
-  due_date: string | null;
-  status: 'PENDING' | 'COMPLETED';
-  reason: string | null;
-  deadline_type: DeadlineType;
-  created_at: string;
-}
 
 @Injectable()
 export class NotesService {

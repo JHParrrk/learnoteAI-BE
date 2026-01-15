@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
+import { OpenAIAnalysisResult } from '../notes/interfaces/openai-analysis-result.interface';
+
 @Injectable()
 export class OpenaiService {
   private openai: OpenAI;
@@ -13,7 +15,7 @@ export class OpenaiService {
     }
   }
 
-  async analyzeNote(rawContent: string): Promise<any> {
+  async analyzeNote(rawContent: string): Promise<OpenAIAnalysisResult> {
     if (!this.openai) {
       throw new Error('OpenAI API Key not found');
     }

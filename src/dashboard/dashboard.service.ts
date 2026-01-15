@@ -11,20 +11,9 @@ import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { LearningTodo } from './interfaces/todo.interface';
 import { DeadlineType } from './interfaces/deadline-type.enum';
+import { LearningTodoDbEntity } from './interfaces/learning-todo-db-entity.interface';
 
 const TABLE_TODOS = 'learning_todos';
-
-interface LearningTodoDbEntity {
-  id: number;
-  note_id: number | null;
-  user_id: number;
-  content: string;
-  due_date: string | null;
-  status: 'PENDING' | 'COMPLETED';
-  reason: string | null;
-  deadline_type: DeadlineType | null;
-  created_at: string;
-}
 
 @Injectable()
 export class DashboardService {
@@ -363,13 +352,31 @@ export class DashboardService {
     if (updateTodoDto.deadlineType !== undefined)
       updates.deadline_type = updateTodoDto.deadlineType;
 
+    if (Object.keys(updates).length === 0) {
+      const { data: todo, error } = await this.supabase
+        .from(TABLE_TODOS)
+        .select('*')
+        .eq('id', todoId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`Error fetching todo ${todoId}:`, error);
+        throw new InternalServerErrorException('Failed to fetch todo');
+      }
+      if (!todo) {
+        throw new NotFoundException(`Todo with ID ${todoId} not found`);
+      }
+      return this.mapToLearningTodo(todo as LearningTodoDbEntity);
+    }
+
     const response = await this.supabase
       .from(TABLE_TODOS)
       .update(updates)
       .eq('id', todoId)
       .eq('user_id', userId) // Ensure ownership
       .select()
-      .single();
+      .maybeSingle();
 
     if (response.error) {
       console.error(`Error updating todo ${todoId}:`, response.error);
