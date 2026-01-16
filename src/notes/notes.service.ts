@@ -199,6 +199,36 @@ export class NotesService {
 
     const analysis = analysisResponse.data;
 
+    // Fetch existing todos for this note to determine 'isCreated' status
+    const { data: existingTodos } = (await this.supabase
+      .from(TABLE_LEARNING_TODOS)
+      .select('content, is_checked')
+      .eq('note_id', noteId)) as unknown as {
+      data: { content: string; is_checked: boolean }[] | null;
+    };
+
+    const existingMap = new Map(
+      existingTodos?.map((t) => [t.content, t.is_checked]) || [],
+    );
+
+    const suggestedTodos = Array.isArray(analysis.suggested_todos_json)
+      ? (
+          analysis.suggested_todos_json as {
+            content: string;
+            [key: string]: any;
+          }[]
+        ).map((todo) => {
+          const isCreated = existingMap.has(todo.content);
+          return {
+            ...todo,
+            isCreated,
+            isChecked: isCreated
+              ? Boolean(existingMap.get(todo.content))
+              : false,
+          };
+        })
+      : [];
+
     return {
       noteId,
       title: note.title,
@@ -209,7 +239,7 @@ export class NotesService {
       factChecks: analysis.fact_checks_json || [],
       feedback: analysis.feedback_json,
       skillUpdateProposal: analysis.skill_proposal_json,
-      suggestedTodos: analysis.suggested_todos_json,
+      suggestedTodos: suggestedTodos,
     };
   }
 
@@ -331,27 +361,51 @@ export class NotesService {
       return [];
     }
 
-    const todosToInsert = saveDto.todos.map((todo) => ({
-      note_id: noteId,
-      user_id: userId,
-      content: todo.content,
-      reason: todo.reason,
-      due_date: todo.dueDate,
-      deadline_type: todo.deadlineType as DeadlineType,
-      status: 'PENDING',
-    }));
-
-    const { data, error } = await this.supabase
+    // 1. Check for existing todos for this note to prevent duplicates
+    const { data: existingTodos } = (await this.supabase
       .from(TABLE_LEARNING_TODOS)
-      .insert(todosToInsert)
-      .select();
+      .select('content')
+      .eq('note_id', noteId)
+      .eq('user_id', userId)) as unknown as {
+      data: { content: string }[] | null;
+    };
 
-    if (error) {
-      this.logger.error(`Failed to save learning todos: ${error.message}`);
-      throw new InternalServerErrorException('Failed to save learning todos');
+    const existingContents = new Set(
+      existingTodos?.map((t) => t.content) || [],
+    );
+
+    // 2. Filter out todos that already exist
+    const newTodos = saveDto.todos.filter(
+      (todo) => !existingContents.has(todo.content),
+    );
+
+    let createdTodos: LearningTodoDbEntity[] = [];
+
+    if (newTodos.length > 0) {
+      const todosToInsert = newTodos.map((todo) => ({
+        note_id: noteId,
+        user_id: userId,
+        content: todo.content,
+        reason: todo.reason,
+        due_date: todo.dueDate,
+        deadline_type: todo.deadlineType as DeadlineType,
+        status: 'PENDING',
+        is_checked: true,
+      }));
+
+      const { data, error } = await this.supabase
+        .from(TABLE_LEARNING_TODOS)
+        .insert(todosToInsert)
+        .select();
+
+      if (error) {
+        this.logger.error(`Failed to save learning todos: ${error.message}`);
+        throw new InternalServerErrorException('Failed to save learning todos');
+      }
+      createdTodos = data as unknown as LearningTodoDbEntity[];
     }
 
-    return (data as unknown as LearningTodoDbEntity[]).map((todo) => ({
+    return createdTodos.map((todo) => ({
       id: todo.id,
       noteId: todo.note_id,
       userId: todo.user_id,
@@ -361,6 +415,7 @@ export class NotesService {
       reason: todo.reason,
       deadlineType: todo.deadline_type,
       createdAt: todo.created_at,
+      isChecked: Boolean(todo.is_checked),
     }));
   }
 }

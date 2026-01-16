@@ -37,4 +37,7 @@ export class TodoResponseDto {
 
   @ApiProperty({ example: '2026-01-14T12:00:00Z' })
   createdAt: string;
+
+  @ApiProperty({ example: true })
+  isChecked: boolean;
 }

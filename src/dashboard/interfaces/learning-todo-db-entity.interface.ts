@@ -10,4 +10,5 @@ export interface LearningTodoDbEntity {
   reason: string | null;
   deadline_type: DeadlineType | null;
   created_at: string;
+  is_checked: boolean;
 }

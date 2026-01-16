@@ -43,10 +43,11 @@ export class LearningTodoItemDto {
     example: DeadlineType.SHORT_TERM,
     description: 'Deadline type (SHORT_TERM or LONG_TERM)',
     required: false,
+    nullable: true,
   })
   @IsOptional()
   @IsEnum(DeadlineType)
-  deadlineType?: DeadlineType;
+  deadlineType?: DeadlineType | null;
 }
 
 export class SaveLearningTodosDto {

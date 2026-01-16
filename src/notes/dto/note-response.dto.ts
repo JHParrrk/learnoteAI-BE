@@ -91,8 +91,21 @@ export class NoteAnalysisResponseDto {
   skillUpdateProposal?: Record<string, any>;
 
   @ApiProperty({
-    example: [{ content: 'Practice Decorators', dueDate: '2026-01-15' }],
-    description: 'Suggested todo items',
+    example: [
+      {
+        content: 'Existing Todo',
+        dueDate: '2026-01-15',
+        isCreated: true,
+        isChecked: true,
+      },
+      {
+        content: 'New Suggestion',
+        dueDate: '2026-01-20',
+        isCreated: false,
+        isChecked: false,
+      },
+    ],
+    description: 'Suggested todo items based on analysis',
   })
   suggestedTodos?: any[];
 }

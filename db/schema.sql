@@ -11,6 +11,7 @@ CREATE TABLE public.learning_todos (
   reason text,
   created_at timestamp without time zone DEFAULT now(),
   deadline_type USER-DEFINED,
+  is_checked BOOLEAN DEFAULT FALSE,
   CONSTRAINT learning_todos_pkey PRIMARY KEY (id),
   CONSTRAINT learning_todos_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT learning_todos_note_id_fkey FOREIGN KEY (note_id) REFERENCES public.notes(id)
