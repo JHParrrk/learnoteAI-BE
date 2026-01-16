@@ -54,6 +54,14 @@ export class SaveLearningTodosDto {
   @ApiProperty({
     type: [LearningTodoItemDto],
     description: 'A list of todos to be saved',
+    example: [
+      {
+        content: 'React Hooks 심화 학습',
+        reason: '분석 결과에서 추천됨',
+        dueDate: '2026-01-20',
+        deadlineType: 'SHORT_TERM',
+      },
+    ],
   })
   @IsArray()
   @ValidateNested({ each: true })

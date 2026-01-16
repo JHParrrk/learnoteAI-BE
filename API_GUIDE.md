@@ -19,21 +19,18 @@
 
 ### 2.1. 필드 개념 이해 (중요)
 
-- **`isCreated` (저장 여부)**: 분석 결과에서 제안된 '추천 항목'이 실제 DB(`learning_todos` 테이블)에 데이터로 생성되었는지 여부입니다.
-  - **상태 변화**: `POST /notes/:id/todos` API를 통해 해당 추천 항목을 저장하면, 서버가 DB 존재 여부를 실시간으로 체크하여 자동으로 `true`로 변환하여 내려줍니다. 프론트엔드에서는 이 값이 `true`일 때 저장 버튼을 비활성화하거나 "추가됨" 상태로 UI를 처리합니다.
+- **`isCreated` (저장 여부)**: 분석 결과에서 제안된 '추천 항목'이 실제 DB(`learning_todos` 테이블)에 데이터로 생성되었는지 여부입니다. 이는 DB에 직접 저장된 컬럼이 아니라, 추천 항목의 내용이 실제 Todo 테이블에 존재하는지를 서버에서 동적으로 체크하여 반환하는 값입니다.
+  - **상태 변화**: `POST /notes/:id/todos` API를 통해 항목을 저장하면, 이후 `GET /notes/:id/analysis` 호출 시 해당 항목의 `isCreated`가 `true`로 반환됩니다.
 
-- **`isChecked` (체크 여부)**: 해당 할 일이 실제 '체크(선택)'되어 저장된 상태인지를 나타냅니다.
-  - **`isCreated: true`인 경우**: DB(`learning_todos`)에 저장된 실제 `is_checked` 값을 반영합니다. (현재 로직상 저장 시 기본값이 `true`이므로, 저장된 항목은 `true`로 반환됩니다.)
-  - **`isCreated: false`인 경우**: 아직 DB에 저장되지 않은 추천 단계의 항목이므로 항상 `false`로 반환됩니다.
+- **`isChecked` (체크 여부)**: 해당 할 일이 실제 '체크(선택)'되어 저장된 상태인지를 나타냅니다. DB의 `is_checked` 컬럼 값을 반영합니다.
+  - **`isCreated: true`인 경우**: DB에 저장된 실제 `is_checked` 값을 반환합니다. (현재 로직상 저장 시 기본값이 `true`이므로, 새로 저장된 항목은 자동으로 `true`가 됩니다.)
+  - **`isCreated: false`인 경우**: 아직 DB에 저장되지 않은 추천 단계이므로 항상 `false`입니다.
 
 ---
 
 ### 2.2. 학습 할 일 저장 (Save Learning Todos)
 
-노트 분석 결과에서 사용자가 선택한 추천 할 일(Suggested Todos)을 실제 DB에 저장할 때 사용합니다.
-
-- **Endpoint:** `POST /notes/:id/todos`
-- **Content-Type:** `application/json`
+노트 분석 결과에서 사용자가 선택한 추천 할 일(Suggested Todos)을 실제 DB에 저장할 때 사용합니다. `isChecked`나 `isCreated`는 서버에서 자동으로 처리하므로 요청 본문에 포함할 필요가 없습니다.
 
 **요청 (Request Body):**
 
