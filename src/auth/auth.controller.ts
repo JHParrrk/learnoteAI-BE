@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
 import {
   RequestWithUser,
   RequestWithUserEntity,
@@ -20,6 +21,7 @@ export class AuthController {
 
   @UseGuards(AuthGuard('local'))
   @Post('login')
+  @ApiBody({ type: LoginDto })
   login(@Req() req: RequestWithUserEntity) {
     return this.authService.login(req.user);
   }
