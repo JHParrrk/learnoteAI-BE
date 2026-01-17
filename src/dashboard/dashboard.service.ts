@@ -88,14 +88,14 @@ export class DashboardService {
 
   private async countNotesForMonth(userId: number, referenceDate: Date) {
     try {
-      const start = new Date(
-        Date.UTC(
-          referenceDate.getUTCFullYear(),
-          referenceDate.getUTCMonth(),
-          1,
-        ),
-      );
-      const end = this.addMonthsUtc(start, 1);
+      const kstDate = this.toKst(referenceDate);
+      const year = kstDate.getUTCFullYear();
+      const month = kstDate.getUTCMonth();
+
+      // KST 기준 월의 시작은 (UTC 기준 월 시작 - 9시간)
+      const KST_OFFSET = 9 * 60 * 60 * 1000;
+      const start = new Date(Date.UTC(year, month, 1) - KST_OFFSET);
+      const end = new Date(Date.UTC(year, month + 1, 1) - KST_OFFSET);
 
       const response = await this.supabase
         .from('notes')
@@ -225,9 +225,17 @@ export class DashboardService {
   }
 
   private resolveRange() {
-    const year = new Date().getUTCFullYear();
-    const fromDate = this.startOfDayUtc(new Date(`${year}-01-01`));
-    const toDate = this.addDaysUtc(this.addMonthsUtc(fromDate, 12), -1);
+    const kstNow = this.toKst(new Date());
+    const year = kstNow.getUTCFullYear();
+    const KST_OFFSET = 9 * 60 * 60 * 1000;
+
+    // KST 1월 1일 00:00 = UTC 12월 31일 15:00 (전년도)
+    const fromDate = new Date(Date.UTC(year, 0, 1) - KST_OFFSET);
+
+    // KST 12월 31일 00:00 = KST 다음해 1월 1일 00:00 - 24시간
+    const toDate = new Date(
+      Date.UTC(year + 1, 0, 1) - KST_OFFSET - 24 * 60 * 60 * 1000,
+    );
     return { fromDate, toDate };
   }
 

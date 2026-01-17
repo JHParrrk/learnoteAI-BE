@@ -37,6 +37,11 @@ export class NotesService {
     return this.supabaseService.getClient();
   }
 
+  private toKst(date: Date): Date {
+    const KST_OFFSET = 9 * 60 * 60 * 1000;
+    return new Date(date.getTime() + KST_OFFSET);
+  }
+
   private mapToNoteEntity(note: NotesDbEntity): NotesEntity {
     return {
       id: note.id,
@@ -272,13 +277,20 @@ export class NotesService {
     }
 
     return {
-      items: ((response.data as NotesDbEntity[]) ?? []).map((item) => ({
-        id: item.id,
-        title: item.title,
-        createdAt: item.created_at
-          ? item.created_at.toString().slice(0, 10)
-          : item.created_at,
-      })) as NoteListItemDto[],
+      items: ((response.data as NotesDbEntity[]) ?? []).map((item) => {
+        const dateObj = item.created_at ? new Date(item.created_at) : null;
+        let dateStr: string = item.created_at ? item.created_at.toString() : '';
+
+        if (dateObj && !isNaN(dateObj.getTime())) {
+          dateStr = this.toKst(dateObj).toISOString().slice(0, 10);
+        }
+
+        return {
+          id: item.id,
+          title: item.title,
+          createdAt: dateStr,
+        };
+      }) as NoteListItemDto[],
       total: response.count ?? 0,
       page,
       pageSize,
