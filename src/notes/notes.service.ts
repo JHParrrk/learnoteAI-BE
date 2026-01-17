@@ -43,13 +43,23 @@ export class NotesService {
   }
 
   private mapToNoteEntity(note: NotesDbEntity): NotesEntity {
+    const createdAtStr = note.created_at;
+    let kstCreatedAt = createdAtStr;
+
+    if (createdAtStr) {
+      const date = new Date(createdAtStr);
+      if (!isNaN(date.getTime())) {
+        kstCreatedAt = this.toKst(date).toISOString();
+      }
+    }
+
     return {
       id: note.id,
       userId: note.user_id,
       title: note.title,
       rawContent: note.raw_content,
       refinedContent: note.refined_content,
-      createdAt: note.created_at,
+      createdAt: kstCreatedAt,
     };
   }
 

@@ -25,6 +25,16 @@ export class DashboardService {
   }
 
   private mapToLearningTodo(todo: LearningTodoDbEntity): LearningTodo {
+    const createdAtStr = todo.created_at;
+    let kstCreatedAt = createdAtStr;
+
+    if (createdAtStr) {
+      const date = new Date(createdAtStr);
+      if (!isNaN(date.getTime())) {
+        kstCreatedAt = this.toKst(date).toISOString();
+      }
+    }
+
     return {
       id: todo.id,
       noteId: todo.note_id,
@@ -34,7 +44,7 @@ export class DashboardService {
       status: todo.status,
       reason: todo.reason,
       deadlineType: todo.deadline_type,
-      createdAt: todo.created_at,
+      createdAt: kstCreatedAt,
     };
   }
 
@@ -344,6 +354,7 @@ export class DashboardService {
       console.error('Error fetching todos:', response.error);
       throw new InternalServerErrorException('Failed to fetch todos');
     }
+
     return ((response.data as unknown as LearningTodoDbEntity[]) ?? []).map(
       (todo) => this.mapToLearningTodo(todo),
     );
