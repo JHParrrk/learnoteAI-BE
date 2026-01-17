@@ -144,7 +144,7 @@ export class DashboardService {
         if (typeof row.created_at !== 'string') {
           throw new Error('Invalid data: created_at field must be a string');
         }
-        const date = this.formatDateUtc(new Date(row.created_at));
+        const date = this.formatDateUtc(this.toKst(new Date(row.created_at)));
         uniqueDates.add(date);
       }
 
@@ -194,7 +194,9 @@ export class DashboardService {
         if (typeof row.created_at !== 'string') {
           throw new Error('Invalid data: created_at field must be a string');
         }
-        const dateKey = this.formatDateUtc(new Date(row.created_at));
+        const dateKey = this.formatDateUtc(
+          this.toKst(new Date(row.created_at)),
+        );
         countsByDate.set(dateKey, (countsByDate.get(dateKey) ?? 0) + 1);
       }
 
@@ -264,6 +266,11 @@ export class DashboardService {
     const aStart = this.startOfDayUtc(a).getTime();
     const bStart = this.startOfDayUtc(b).getTime();
     return Math.round((bStart - aStart) / msPerDay);
+  }
+
+  private toKst(date: Date): Date {
+    const KST_OFFSET = 9 * 60 * 60 * 1000;
+    return new Date(date.getTime() + KST_OFFSET);
   }
 
   private formatDateUtc(date: Date) {
